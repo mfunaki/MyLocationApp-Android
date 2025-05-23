@@ -14,8 +14,14 @@ import com.google.android.gms.location.Priority
 import com.google.android.gms.location.LocationCallback
 import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.OnMapReadyCallback
+import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MarkerOptions
 
-class MainActivity : AppCompatActivity() {
+class MainActivity : AppCompatActivity(), OnMapReadyCallback {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private lateinit var latitudeTextView: TextView
     private lateinit var longitudeTextView: TextView
@@ -25,6 +31,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var locationRequest: LocationRequest
     private lateinit var locationCallback: LocationCallback
     private var requestingLocationUpdates = false
+
+    // GoogleMapオブジェクトを保持する変数
+    private var googleMap: GoogleMap? = null
+    private var currentLatLng: LatLng? = null   // 現在の緯度軽度を保持
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -50,7 +60,40 @@ class MainActivity : AppCompatActivity() {
                     latitudeTextView.text = "緯度: $latitude"
                     longitudeTextView.text = "経度 $longitude"
                     println("定期更新 - 緯度: $latitude, 経度: $longitude")
+
+                    // 地図を更新
+                    currentLatLng = LatLng(latitude, longitude)
+                    updateMapLocation()
                 }
+            }
+        }
+
+        // SupportMapFragmentを取得し、地図の準備ができたら onMapReady を呼び出すように設定
+        val mapFragment = supportFragmentManager
+            .findFragmentById(R.id.map) as SupportMapFragment
+        mapFragment.getMapAsync(this)   // this (MainActivity) がOnMapReadyCallbackを実装
+    }
+
+    // OnMapReadyCallbackメソッド: 地図の準備ができたら呼び出される
+    override fun onMapReady(map: GoogleMap) {
+        googleMap = map
+
+        // 地図の初期設定
+        googleMap?.uiSettings?.isZoomControlsEnabled = true // ズームコントロールを表示
+
+        // 最初に位置情報が取得できれいれば地図に表示
+        currentLatLng?.let {
+            updateMapLocation()
+        }
+    }
+
+    // 地図上の位置を更新するメソッド
+    private fun updateMapLocation() {
+        googleMap?.let { map ->
+            currentLatLng?.let { latLng ->
+                map.clear() // 古いマーカーをクリア
+                map.addMarker(MarkerOptions().position(latLng).title("現在地"))
+                map.moveCamera(CameraUpdateFactory.newLatLngZoom(latLng, 15f))  // ズームレベル15で表示
             }
         }
     }
@@ -73,9 +116,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun stopLocationUpdates() {
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-        requestingLocationUpdates = false
-        println("位置情報の定期更新を停止しました。")
+        if (requestingLocationUpdates) {
+            fusedLocationClient.removeLocationUpdates(locationCallback)
+            requestingLocationUpdates = false
+            println("位置情報の定期更新を停止しました。")
+        }
     }
 
     override fun onResume() {
